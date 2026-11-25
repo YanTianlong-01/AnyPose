@@ -17,7 +17,7 @@ window.PoseWearImageProviders = (() => {
     },
     zzai: {
       name: 'ZZAI 异步', base: 'https://api.seedance.nz', model: 'zhenzhen-image-g-v2.6-lowprice',
-      models: ['zhenzhen-image-g-v2.6-lowprice', 'zhenzhen-image-g-v2.6-flare', 'zhenzhen-image-g-v2.6-sunburst', 'zhenzhen-image-g2-t2i', 'zhenzhen-image-g2-i2i']
+      models: ['zhenzhen-image-g-v2.6-lowprice', 'zhenzhen-image-g-v2.6-flare', 'zhenzhen-image-g-v2.6-sunburst', 'zhenzhen-image-g2-t2i', 'zhenzhen-image-g2-i2i', 'zhenzhen-image-gk-v2-edit']
     },
     rh: {
       name: 'RH.AI站点', base: 'https://www.runninghub.ai', model: 'Qwen-Image-2.1-SeedVR2',
@@ -349,7 +349,15 @@ window.PoseWearImageProviders = (() => {
     const body = { model: job.model, prompt: job.prompt, n: 1, output_format: 'png' };
     if (urls.length) body.images = urls;
     if (job.ratio !== 'auto') body.size = job.ratio;
-    const data = await readResponse(job, '/v1/image/generations', body);
+    let data;
+    try {
+      data = await readResponse(job, '/v1/image/generations', body);
+    } catch (error) {
+      // 各模型可接受参数不一（如 nb 系不收 output_format、gk-v2-edit 不收 size/quality）：400 时退到最小参数集重试一次
+      if (error.name === 'AbortError' || error.safe || error.status !== 400) throw error;
+      const minimal = { model: job.model, prompt: job.prompt, n: 1, ...(urls.length ? { images: urls } : {}) };
+      data = await readResponse(job, '/v1/image/generations', minimal);
+    }
     const id = data?.task_id || data?.id;
     if (!id) throw Error('任务已提交但没有返回 task_id');
     const url = await zzaiPoll(job, id);
