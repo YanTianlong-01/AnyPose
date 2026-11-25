@@ -21,7 +21,7 @@ window.PoseWearImageProviders = (() => {
     },
     rh: {
       name: 'RH.AI站点', base: 'https://www.runninghub.ai', model: 'Qwen-Image-2.1-SeedVR2',
-      models: ['Qwen-Image-2.1-SeedVR2']
+      models: ['Qwen-Image-2.1-SeedVR2', 'Qwen-Image-2.1-Fast-lowprice']
     },
     custom: {
       name: '自定义中转', base: '', model: 'gpt-image-1',
@@ -370,7 +370,11 @@ window.PoseWearImageProviders = (() => {
   // RunningHub AI 应用（RH.AI站点）：Qwen-Image-2.1-SeedVR2 异步任务，plus 48G 实例。
   // 参考图先上传换 fileName；工作流的 9 个图片槽位按顺序填入，未用到的槽位 fieldValue 填 "None"。
   // 该站 CORS 全开放，浏览器可直连；分辨率与画幅由工作流自身设置决定，不下发 nodeId 46 的参数。
-  const RH_APP_ID = '2125520040364007425';
+  // 模型名 → AI 应用与实例档位：SeedVR2=plus 48G；Fast-lowprice=default 24G（更便宜更快）
+  const RH_APPS = {
+    'Qwen-Image-2.1-SeedVR2': { appId: '2125520040364007425', instance: 'plus' },
+    'Qwen-Image-2.1-Fast-lowprice': { appId: '2125600239171411970', instance: 'default' }
+  };
   const RH_IMAGE_NODES = ['72', '81', '97', '79', '82', '98', '90', '92', '96'];
 
   async function generateRh(job) {
@@ -387,9 +391,10 @@ window.PoseWearImageProviders = (() => {
     }
     const nodeInfoList = [{ nodeId: '45', fieldName: 'value', fieldValue: job.prompt }];
     RH_IMAGE_NODES.forEach((nodeId, i) => nodeInfoList.push({ nodeId, fieldName: 'image', fieldValue: i < fileNames.length ? fileNames[i] : 'None' }));
-    const reply = await request(job.settings, '/openapi/v2/run/ai-app/' + RH_APP_ID, {
+    const app = RH_APPS[job.model] || RH_APPS['Qwen-Image-2.1-SeedVR2'];
+    const reply = await request(job.settings, '/openapi/v2/run/ai-app/' + app.appId, {
       method: 'POST', signal: job.signal, headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nodeInfoList, instanceType: 'plus' })
+      body: JSON.stringify({ nodeInfoList, instanceType: app.instance })
     });
     const data = await reply.json().catch(() => null);
     job.signal.throwIfAborted();
