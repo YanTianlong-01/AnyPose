@@ -46,7 +46,7 @@ window.PoseWearImageProviders = (() => {
     if (settings.prov === 'gemini') return base + '/v1beta';
     if (settings.prov === 'seedream') return base;
     if (settings.prov === 'zzai') return base.replace(/\/v\d+$/, '');
-    if (settings.prov === 'rh') return base;
+    if (settings.prov === 'rh') return providers.rh.base; // 地址固定内置，忽略用户历史填写的 base
     return /\/v\d+$/.test(base) ? base : base + '/v1';
   }
 
