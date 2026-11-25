@@ -93,7 +93,10 @@ open(f'{D}/404.html','w').write(f'''<!doctype html><html lang="zh-CN"><head><met
 <div class="nf"><b>404</b><h1>这个页面不存在</h1><p class="mu">链接可能写错了，或者内容已经调整。</p><a class="go" href="/">回到首页</a><a class="go secondary" href="/#costume">看看服装库</a></div></body></html>''')
 _IMG=" ".join(["'self'","data:","blob:"]+list(DEPTH_ORIGINS)+list(HOTLINK_ORIGINS)+([AH] if AH else []))
 CSP=("default-src 'self'; script-src 'self' "+SH+(" https://static.cloudflareinsights.com" if WAT else "")+"; style-src 'self' 'unsafe-inline'; img-src "+_IMG+"; font-src 'self' data:; "
- "connect-src 'self' data: blob: https:; "
+ "connect-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; "
+ # 本机回环 http：自定义服务商直连本机网关（如本地 ComfyUI/OpenAI 兼容网关）时，
+ # 浏览器直接 fetch http://127.0.0.1:端口；此前 connect-src 只有 https: 会拦掉。
+ # upgrade-insecure-requests 不升级回环地址（已是潜在可信源），故只需放行本机 http。
  "worker-src 'self'; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests")
 IMM='  Cache-Control: public, max-age=31536000, immutable\n'
 # Pages Functions 必须位于部署目录内才会随 wrangler pages deploy 一起发布（曾因只传静态产物导致 /api/proxy 丢失，见 issue #7）
