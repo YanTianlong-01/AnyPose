@@ -34,7 +34,7 @@ export async function onRequest(ctx){const {request}=ctx;
   const official=OFFICIAL.some(r=>r.test(t.hostname)),custom=request.headers.get('x-proxy-custom')==='1';
   if(!official&&!custom)return j(403,'该地址不是官方接口；自定义中转需在设置中选择「自定义」');
   const path=t.pathname.replace(/\/+$/,'');
-  if(official?!API_PATH.test(path):!/\/(images\/(edits|generations)|image\/generations(\/[^/]+)?|files\/upload|usage\/wallet|models(\/[^/]+(:generateContent)?)?)$/.test(path))return j(403,'该路径不允许通过代理转发');
+  if(official?!API_PATH.test(path):!/\/(images\/(edits|generations)|image\/generations(\/[^/]+)?|files\/upload|usage\/wallet|openapi\/v\d+\/(run\/ai-app\/\d+|query|media\/upload\/binary)|models(\/[^/]+(:generateContent)?)?)$/.test(path))return j(403,'该路径不允许通过代理转发');
   if(custom&&/^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[)/.test(t.hostname))return j(403,'不能转发到内网地址');
   if(await over(ip,'api',ctx))return j(429,'请求过于频繁，请稍后再试');
   const h=new Headers();for(const name of FORWARD)if(request.headers.has(name))h.set(name,request.headers.get(name));

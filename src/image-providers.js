@@ -19,6 +19,10 @@ window.PoseWearImageProviders = (() => {
       name: 'ZZAI 异步', base: 'https://api.seedance.nz', model: 'zhenzhen-image-g-v2.6-lowprice',
       models: ['zhenzhen-image-g-v2.6-lowprice', 'zhenzhen-image-g-v2.6-flare', 'zhenzhen-image-g-v2.6-sunburst', 'zhenzhen-image-g2-t2i', 'zhenzhen-image-g2-i2i']
     },
+    rh: {
+      name: 'RH.AI站点', base: 'https://www.runninghub.ai', model: 'Qwen-Image-2.1-SeedVR2',
+      models: ['Qwen-Image-2.1-SeedVR2']
+    },
     custom: {
       name: '自定义中转', base: '', model: 'gpt-image-1',
       models: ['gpt-image-1', 'gpt-image-2', 'grok-imagine-image-2.0', 'gemini-2.5-flash-image', 'flux-kontext-pro', 'qwen-image-edit', 'doubao-seedream-4-0-250828']
@@ -42,6 +46,7 @@ window.PoseWearImageProviders = (() => {
     if (settings.prov === 'gemini') return base + '/v1beta';
     if (settings.prov === 'seedream') return base;
     if (settings.prov === 'zzai') return base.replace(/\/v\d+$/, '');
+    if (settings.prov === 'rh') return base;
     return /\/v\d+$/.test(base) ? base : base + '/v1';
   }
 
@@ -96,7 +101,7 @@ window.PoseWearImageProviders = (() => {
   };
 
   function apiError(reply, data, settings) {
-    const detail = data?.error?.message || data?.message || reply.statusText;
+    const detail = data?.error?.message || data?.message || data?.msg || reply.statusText;
     const message = redact(typeof detail === 'string' ? detail : JSON.stringify(detail), settings.key);
     const requestId = data?.error?.request_id || reply.headers.get('x-request-id');
     const blocked = safetyError(message, data, requestId, settings.key);
@@ -124,6 +129,17 @@ window.PoseWearImageProviders = (() => {
   }
 
   async function testConnection(settings, model, signal) {
+    if (settings.prov === 'rh') {
+      // RunningHub 无模型列表接口，用免费上传一张 1×1 像素图验证密钥
+      const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), c => c.charCodeAt(0));
+      const form = new FormData();
+      form.set('file', new Blob([bytes], { type: 'image/png' }), 'probe.png');
+      const reply = await request(settings, '/openapi/v2/media/upload/binary', { method: 'POST', body: form, signal });
+      const data = await reply.json().catch(() => null);
+      if (!reply.ok) throw apiError(reply, data, settings);
+      if (data?.code !== 0) throw Error(redact(data?.msg || '密钥验证失败', settings.key));
+      return '连接成功：密钥有效。生图为异步任务（plus 48G 实例），提交后自动轮询取图，通常需要几分钟。';
+    }
     if (settings.prov === 'zzai') {
       // 图片接口是异步任务、没有模型列表，改用钱包接口验证密钥
       const reply = await request(settings, '/api/usage/wallet/', { method: 'GET', signal });
@@ -343,12 +359,74 @@ window.PoseWearImageProviders = (() => {
     return { blob: await dl.blob() };
   }
 
+  // RunningHub AI 应用（RH.AI站点）：Qwen-Image-2.1-SeedVR2 异步任务，plus 48G 实例。
+  // 参考图先上传换 fileName；工作流的 9 个图片槽位按顺序填入，未用到的槽位 fieldValue 填 "None"。
+  // 该站 CORS 全开放，浏览器可直连；比例选「自动」时不发送 aspect_ratio，让工作流默认值生效。
+  const RH_APP_ID = '2125520040364007425';
+  const RH_IMAGE_NODES = ['72', '81', '97', '79', '82', '98', '90', '92', '96'];
+  const RH_RATIOS = { '1:1': '1:1 (Square)', '2:3': '2:3 (Portrait Photo)', '3:4': '3:4 (Portrait Standard)', '9:16': '9:16 (Portrait Widescreen)', '4:3': '4:3 (Standard)', '16:9': '16:9 (Widescreen)' };
+
+  async function generateRh(job) {
+    const fileNames = [];
+    for (const image of job.images.slice(0, RH_IMAGE_NODES.length)) {
+      const form = new FormData();
+      form.set('file', image, 'ref-' + (fileNames.length + 1) + '.png');
+      const reply = await request(job.settings, '/openapi/v2/media/upload/binary', { method: 'POST', body: form, signal: job.signal });
+      const data = await reply.json().catch(() => null);
+      job.signal.throwIfAborted();
+      if (!reply.ok) throw apiError(reply, data, job.settings);
+      if (data?.code !== 0 || !data?.data?.fileName) throw Error(redact(data?.msg || '参考图上传失败：RunningHub 未返回文件名', job.settings.key));
+      fileNames.push(data.data.fileName);
+    }
+    const nodeInfoList = [{ nodeId: '45', fieldName: 'value', fieldValue: job.prompt }];
+    if (job.ratio !== 'auto') nodeInfoList.push({ nodeId: '46', fieldName: 'aspect_ratio', fieldValue: RH_RATIOS[job.ratio] || '1:1 (Square)' });
+    nodeInfoList.push({ nodeId: '46', fieldName: 'megapixels', fieldValue: '1' });
+    RH_IMAGE_NODES.forEach((nodeId, i) => nodeInfoList.push({ nodeId, fieldName: 'image', fieldValue: i < fileNames.length ? fileNames[i] : 'None' }));
+    const reply = await request(job.settings, '/openapi/v2/run/ai-app/' + RH_APP_ID, {
+      method: 'POST', signal: job.signal, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeInfoList, instanceType: 'plus' })
+    });
+    const data = await reply.json().catch(() => null);
+    job.signal.throwIfAborted();
+    if (!reply.ok) throw apiError(reply, data, job.settings);
+    const taskId = data?.taskId || data?.data?.taskId;
+    if (!taskId) throw Error(redact(data?.msg || '任务已提交但没有返回 taskId', job.settings.key));
+    const deadline = Date.now() + 15 * 60 * 1000;
+    while (Date.now() < deadline) {
+      if (job.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { job.signal.removeEventListener('abort', onAbort); resolve(); }, 5000);
+        const onAbort = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); };
+        job.signal.addEventListener('abort', onAbort, { once: true });
+      });
+      const query = await request(job.settings, '/openapi/v2/query', {
+        method: 'POST', signal: job.signal, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId })
+      });
+      const result = await query.json().catch(() => null);
+      job.signal.throwIfAborted();
+      if (!query.ok) throw apiError(query, result, job.settings);
+      const status = String(result?.status || '').toUpperCase();
+      if (status === 'SUCCESS') {
+        const url = (result?.results || []).map(item => item?.url).find(Boolean);
+        if (!url) throw Error('任务成功但没有返回图片地址');
+        let dl = await fetch(url, { signal: job.signal }).catch(() => null);
+        if (!dl?.ok) dl = await fetch('/api/proxy', { signal: job.signal, headers: { 'x-target-url': url, 'x-proxy-kind': 'image', 'x-proxy-custom': '1' } }).catch(() => null);
+        if (!dl?.ok) throw Error('结果图片下载失败，请直接打开：' + redact(url, job.settings.key));
+        return { blob: await dl.blob() };
+      }
+      if (status === 'FAILED') throw Error(redact('生成失败：' + (result?.errorMessage || JSON.stringify(result?.failedReason || '服务商未说明原因')), job.settings.key));
+    }
+    throw Error('任务等待超时（15 分钟仍未完成），可到 RunningHub 任务页查看进度');
+  }
+
   function generateImage(job) {
     switch (protocol(job.settings)) {
       case 'local': return generateLocal(job);
       case 'gemini': return generateGemini(job);
       case 'seedream': return generateSeedream(job);
       case 'zzai': return generateZzai(job);
+      case 'rh': return generateRh(job);
       case 'xai': return generateXai(job);
       default: return generateOpenAI(job);
     }
