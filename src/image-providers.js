@@ -380,7 +380,7 @@ window.PoseWearImageProviders = (() => {
     }
     const nodeInfoList = [{ nodeId: '45', fieldName: 'value', fieldValue: job.prompt }];
     if (job.ratio !== 'auto') nodeInfoList.push({ nodeId: '46', fieldName: 'aspect_ratio', fieldValue: RH_RATIOS[job.ratio] || '1:1 (Square)' });
-    nodeInfoList.push({ nodeId: '46', fieldName: 'megapixels', fieldValue: '1' });
+    if (job.megapixels && job.megapixels !== 'auto') nodeInfoList.push({ nodeId: '46', fieldName: 'megapixels', fieldValue: String(job.megapixels) });
     RH_IMAGE_NODES.forEach((nodeId, i) => nodeInfoList.push({ nodeId, fieldName: 'image', fieldValue: i < fileNames.length ? fileNames[i] : 'None' }));
     const reply = await request(job.settings, '/openapi/v2/run/ai-app/' + RH_APP_ID, {
       method: 'POST', signal: job.signal, headers: { 'Content-Type': 'application/json' },

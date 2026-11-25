@@ -39,12 +39,13 @@ if(savedDraft){
  $('#wbExtra').value=savedDraft.extra;
  $('#wbN').value=savedDraft.count;
  $('#wbAR').value=savedDraft.ratio;
+ if(savedDraft.mp)$('#wbMP').value=savedDraft.mp;
  W.dirty=savedDraft.prompt!=null;
  if(W.dirty)$('#wbPrompt').value=savedDraft.prompt;
 }
 function saveDraft(){
  SV('wbDraft',{prompt:W.dirty?$('#wbPrompt').value:null,extra:$('#wbExtra').value,
-  count:$('#wbN').value,ratio:$('#wbAR').value});
+  count:$('#wbN').value,ratio:$('#wbAR').value,mp:$('#wbMP').value});
 }
 // ---------- 工具 ----------
 const modelOf=(settings=cfg)=>settings.prov==='local'&&localPreset?settings.checkpoint:(settings.model||'').trim()||PROV[settings.prov].model;
@@ -223,7 +224,7 @@ function render(){
  $('#wbBatch').hidden=poseGroups(W.poses).length<2;$$('[data-bm]').forEach(b=>b.classList.toggle('on',b.dataset.bm==W.bm));$('#wbAllAng').hidden=W.poses.length!=1||!A.ITEMS[(W.poses[0]||{}).k];
  $('#wbStyles').innerHTML=STYLES.map(s=>`<button class="chip ${W.style==s[0]?'on':''}" data-style="${s[0]}">${s[1]}</button>`).join('');$('#wbKeepBg').checked=W.keepBg;$('#wbKeepBg').closest('label').hidden=G||!hasPerson();
  $$('[data-pl]').forEach(b=>b.classList.toggle('on',b.dataset.pl==W.pl));
- const ok=configured();$('#wbDot').className='dot'+(ok?' on':'');$('#wbProv').textContent=provLabel()||'未配置 API';$('#wbDot2').className='dot'+(ok?' on':'');$('#wbProv2').textContent=ok?PROV[cfg.prov].name:'未配置 API';
+ const ok=configured();$('#wbDot').className='dot'+(ok?' on':'');$('#wbProv').textContent=provLabel()||'未配置 API';$('#wbDot2').className='dot'+(ok?' on':'');$('#wbProv2').textContent=ok?PROV[cfg.prov].name:'未配置 API';$('#wbMPW').hidden=cfg.prov!='rh';
  const sizes=[W.persons.length,W.garments.length,W.poses.length];
  for(const step of $$('.primary-materials .step')){
   const size=sizes[Number(step.dataset.s)-1];
@@ -626,6 +627,7 @@ function jobBatch(opts){
  const count=Number(opts.n||$('#wbN').value)||1;
  const custom=opts.prompt??(!opts.selection&&W.dirty?$('#wbPrompt').value.trim():null);
  const ar=opts.ar||$('#wbAR').value;
+ const mp=opts.mp||$('#wbMP').value||'auto';
  const jobs=[];
  for(const set of sets){
   const original=custom||compose(set,state);
@@ -637,7 +639,7 @@ function jobBatch(opts){
   }).join(' / ');
   for(let i=0;i<count;i++)jobs.push({set,prompt,original,soft,label});
  }
- return {jobs,persons,garments,exprs,extraRefs:state.extraRefs.map(ref=>({...ref})),mode,ar,lang:state.pl,bm:state.bm};
+ return {jobs,persons,garments,exprs,extraRefs:state.extraRefs.map(ref=>({...ref})),mode,ar,mp,lang:state.pl,bm:state.bm};
 }
 function recordInputs(batch,job,imgs){
  const ref=item=>({k:item.k,ai:item.ai});
@@ -687,7 +689,7 @@ async function run(opts={}){
     const timer=setTimeout(()=>{timeout=true;request.abort()},budget);
     try{
      result=await generateImage({
-      images:imgs,prompt:job.prompt,signal:request.signal,ratio:batch.ar,
+      images:imgs,prompt:job.prompt,signal:request.signal,ratio:batch.ar,megapixels:batch.mp,
       settings,model:modelOf(settings),checkpoint:localPreset?settings.checkpoint:null
      });
      request.signal.throwIfAborted();
