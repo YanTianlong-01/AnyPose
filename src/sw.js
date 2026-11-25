@@ -1,4 +1,4 @@
-const VERSION = 'posewear-development';
+const VERSION = 'anypose-20261125a'; // 升版本强制清旧缓存（旧缓存里存有 AH 补丁缺分号的坏 app.js）
 const PRECACHE = ['./','index.html','theme.js','style.css','app.js','image-providers.js','studio.js','extras.js','zip.js','history.js','i18n.js','references.js','favicon.svg'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(VERSION).then(cache => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
