@@ -361,10 +361,9 @@ window.PoseWearImageProviders = (() => {
 
   // RunningHub AI 应用（RH.AI站点）：Qwen-Image-2.1-SeedVR2 异步任务，plus 48G 实例。
   // 参考图先上传换 fileName；工作流的 9 个图片槽位按顺序填入，未用到的槽位 fieldValue 填 "None"。
-  // 该站 CORS 全开放，浏览器可直连；比例选「自动」时不发送 aspect_ratio，让工作流默认值生效。
+  // 该站 CORS 全开放，浏览器可直连；分辨率与画幅由工作流自身设置决定，不下发 nodeId 46 的参数。
   const RH_APP_ID = '2125520040364007425';
   const RH_IMAGE_NODES = ['72', '81', '97', '79', '82', '98', '90', '92', '96'];
-  const RH_RATIOS = { '1:1': '1:1 (Square)', '2:3': '2:3 (Portrait Photo)', '3:4': '3:4 (Portrait Standard)', '9:16': '9:16 (Portrait Widescreen)', '4:3': '4:3 (Standard)', '16:9': '16:9 (Widescreen)' };
 
   async function generateRh(job) {
     const fileNames = [];
@@ -379,8 +378,6 @@ window.PoseWearImageProviders = (() => {
       fileNames.push(data.data.fileName);
     }
     const nodeInfoList = [{ nodeId: '45', fieldName: 'value', fieldValue: job.prompt }];
-    if (job.ratio !== 'auto') nodeInfoList.push({ nodeId: '46', fieldName: 'aspect_ratio', fieldValue: RH_RATIOS[job.ratio] || '1:1 (Square)' });
-    if (job.megapixels && job.megapixels !== 'auto') nodeInfoList.push({ nodeId: '46', fieldName: 'megapixels', fieldValue: String(job.megapixels) });
     RH_IMAGE_NODES.forEach((nodeId, i) => nodeInfoList.push({ nodeId, fieldName: 'image', fieldValue: i < fileNames.length ? fileNames[i] : 'None' }));
     const reply = await request(job.settings, '/openapi/v2/run/ai-app/' + RH_APP_ID, {
       method: 'POST', signal: job.signal, headers: { 'Content-Type': 'application/json' },

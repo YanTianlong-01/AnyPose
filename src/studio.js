@@ -39,13 +39,12 @@ if(savedDraft){
  $('#wbExtra').value=savedDraft.extra;
  $('#wbN').value=savedDraft.count;
  $('#wbAR').value=savedDraft.ratio;
- if(savedDraft.mp)$('#wbMP').value=savedDraft.mp;
  W.dirty=savedDraft.prompt!=null;
  if(W.dirty)$('#wbPrompt').value=savedDraft.prompt;
 }
 function saveDraft(){
  SV('wbDraft',{prompt:W.dirty?$('#wbPrompt').value:null,extra:$('#wbExtra').value,
-  count:$('#wbN').value,ratio:$('#wbAR').value,mp:$('#wbMP').value});
+  count:$('#wbN').value,ratio:$('#wbAR').value});
 }
 // ---------- 工具 ----------
 const modelOf=(settings=cfg)=>settings.prov==='local'&&localPreset?settings.checkpoint:(settings.model||'').trim()||PROV[settings.prov].model;
@@ -224,7 +223,7 @@ function render(){
  $('#wbBatch').hidden=poseGroups(W.poses).length<2;$$('[data-bm]').forEach(b=>b.classList.toggle('on',b.dataset.bm==W.bm));$('#wbAllAng').hidden=W.poses.length!=1||!A.ITEMS[(W.poses[0]||{}).k];
  $('#wbStyles').innerHTML=STYLES.map(s=>`<button class="chip ${W.style==s[0]?'on':''}" data-style="${s[0]}">${s[1]}</button>`).join('');$('#wbKeepBg').checked=W.keepBg;$('#wbKeepBg').closest('label').hidden=G||!hasPerson();
  $$('[data-pl]').forEach(b=>b.classList.toggle('on',b.dataset.pl==W.pl));
- const ok=configured();$('#wbDot').className='dot'+(ok?' on':'');$('#wbProv').textContent=provLabel()||'未配置 API';$('#wbDot2').className='dot'+(ok?' on':'');$('#wbProv2').textContent=ok?PROV[cfg.prov].name:'未配置 API';$('#wbMPW').hidden=cfg.prov!='rh';
+ const ok=configured();$('#wbDot').className='dot'+(ok?' on':'');$('#wbProv').textContent=provLabel()||'未配置 API';$('#wbDot2').className='dot'+(ok?' on':'');$('#wbProv2').textContent=ok?PROV[cfg.prov].name:'未配置 API';$('#wbARW').hidden=cfg.prov=='rh';
  const sizes=[W.persons.length,W.garments.length,W.poses.length];
  for(const step of $$('.primary-materials .step')){
   const size=sizes[Number(step.dataset.s)-1];
@@ -523,7 +522,7 @@ function cfgFill(cfg){
  }
  $('#cfg').classList.toggle('local-engine',cfg.prov==='local');
 $$('[name=prov]').forEach(r=>r.checked=r.value==cfg.prov);const P=PROV[cfg.prov];$('#cfBase').value=cfg.base;$('#cfBase').placeholder=P.base||'https://你的中转地址/v1';$('#cfKey').value=cfg.key;$('#cfKey').placeholder=cfg.prov=='gemini'?'AIza…':cfg.prov=='rh'?'RunningHub API Key（32位）':'sk-… / 方舟 API Key';
- $('#cfModel').value=cfg.model;$('#cfModel').placeholder=P.model;$('#cfModels').innerHTML=P.models.map(m=>`<option value="${m}">`).join('');$('#cfField').value=cfg.field;$('#cfProto').value=cfg.proto;$('#cfProtoW').hidden=cfg.prov!='custom';$('#cfFieldW').hidden=!(cfg.prov=='custom'&&cfg.proto=='edits');$('#cfProxy').checked=cfg.proxy;$('#cfHelp').innerHTML=({local:preset?'使用一张参考图。测试连接后选择模型。':'使用本机已启动的引擎。',openai:'在 <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a> 创建密钥；gpt-image-1 需要已验证的组织。',gemini:'在 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> 免费获取 API Key（AIza 开头）。',seedream:'在 <a href="https://console.volcengine.com/ark" target="_blank" rel="noopener">火山方舟控制台</a> 开通 Seedream 模型并创建 API Key；会自动走本站代理。',zzai:'到 <a href="https://www.zzai.app/keys/?s=CWgV" target="_blank" rel="noopener">www.zzai.app/keys</a> 创建密钥：点击右上角黄色按钮「创建API密钥」→ 输入名称、其余保持默认 → 点击右下角「保存更改」→「复制密钥」（sk-…，接口为 api.seedance.nz）。请求一律经本站代理转发（该接口不允许浏览器直连）。参考图会先上传换取 24 小时临时直链，再提交异步任务并自动轮询取图，等待通常几十秒。',rh:'到 <a href="https://www.runninghub.ai/?inviteCode=rh-v1455" target="_blank" rel="noopener">www.runninghub.ai</a> 获取密钥：上方菜单栏点击「API」→ 点击「获取密钥」→ 点击左侧「消费级-会员」，复制 32 位 API Key（消费级-会员 Key 需账号有基础版及以上会员）。模型与工作流已内置（Qwen-Image-2.1-SeedVR2 · plus 48G 实例）：参考图按工作台顺序填入槽位、未用槽位自动补 None，比例选「自动」时用工作流默认值，任务自动轮询，生成通常需要几分钟。',custom:'直连时，浏览器将密钥和图片发给填写的地址；启用本站代理后经本站转发。http/https 与任意端口均可。'})[cfg.prov]||'';$('#cfKeyGuide').hidden=cfg.prov!='zzai'&&cfg.prov!='rh';$('#cfBaseW').hidden=cfg.prov=='rh';$('#cfMsg').textContent='';$('#cfMsg').className='fine'}
+ $('#cfModel').value=cfg.model;$('#cfModel').placeholder=P.model;$('#cfModels').innerHTML=P.models.map(m=>`<option value="${m}">`).join('');$('#cfField').value=cfg.field;$('#cfProto').value=cfg.proto;$('#cfProtoW').hidden=cfg.prov!='custom';$('#cfFieldW').hidden=!(cfg.prov=='custom'&&cfg.proto=='edits');$('#cfProxy').checked=cfg.proxy;$('#cfHelp').innerHTML=({local:preset?'使用一张参考图。测试连接后选择模型。':'使用本机已启动的引擎。',openai:'在 <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a> 创建密钥；gpt-image-1 需要已验证的组织。',gemini:'在 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> 免费获取 API Key（AIza 开头）。',seedream:'在 <a href="https://console.volcengine.com/ark" target="_blank" rel="noopener">火山方舟控制台</a> 开通 Seedream 模型并创建 API Key；会自动走本站代理。',zzai:'到 <a href="https://www.zzai.app/keys/?s=CWgV" target="_blank" rel="noopener">www.zzai.app/keys</a> 创建密钥：点击右上角黄色按钮「创建API密钥」→ 输入名称、其余保持默认 → 点击右下角「保存更改」→「复制密钥」（sk-…，接口为 api.seedance.nz）。请求一律经本站代理转发（该接口不允许浏览器直连）。参考图会先上传换取 24 小时临时直链，再提交异步任务并自动轮询取图，等待通常几十秒。',rh:'到 <a href="https://www.runninghub.ai/?inviteCode=rh-v1455" target="_blank" rel="noopener">www.runninghub.ai</a> 获取密钥：上方菜单栏点击「API」→ 点击「获取密钥」→ 点击左侧「消费级-会员」，复制 32 位 API Key（消费级-会员 Key 需账号有基础版及以上会员）。模型与工作流已内置（Qwen-Image-2.1-SeedVR2 · plus 48G 实例）：参考图按工作台顺序填入槽位、未用槽位自动补 None，分辨率与画幅由工作流自身设置决定，任务自动轮询，生成通常需要几分钟。',custom:'直连时，浏览器将密钥和图片发给填写的地址；启用本站代理后经本站转发。http/https 与任意端口均可。'})[cfg.prov]||'';$('#cfKeyGuide').hidden=cfg.prov!='zzai'&&cfg.prov!='rh';$('#cfBaseW').hidden=cfg.prov=='rh';$('#cfMsg').textContent='';$('#cfMsg').className='fine'}
 function cfgRead(){
  const prov=$('[name=prov]:checked').value;
  const settings={prov,base:$('#cfBase').value.trim(),key:$('#cfKey').value.trim(),model:$('#cfModel').value.trim(),field:$('#cfField').value,proto:$('#cfProto').value,proxy:$('#cfProxy').checked};
@@ -627,7 +626,6 @@ function jobBatch(opts){
  const count=Number(opts.n||$('#wbN').value)||1;
  const custom=opts.prompt??(!opts.selection&&W.dirty?$('#wbPrompt').value.trim():null);
  const ar=opts.ar||$('#wbAR').value;
- const mp=opts.mp||$('#wbMP').value||'auto';
  const jobs=[];
  for(const set of sets){
   const original=custom||compose(set,state);
@@ -639,7 +637,7 @@ function jobBatch(opts){
   }).join(' / ');
   for(let i=0;i<count;i++)jobs.push({set,prompt,original,soft,label});
  }
- return {jobs,persons,garments,exprs,extraRefs:state.extraRefs.map(ref=>({...ref})),mode,ar,mp,lang:state.pl,bm:state.bm};
+ return {jobs,persons,garments,exprs,extraRefs:state.extraRefs.map(ref=>({...ref})),mode,ar,lang:state.pl,bm:state.bm};
 }
 function recordInputs(batch,job,imgs){
  const ref=item=>({k:item.k,ai:item.ai});
@@ -689,7 +687,7 @@ async function run(opts={}){
     const timer=setTimeout(()=>{timeout=true;request.abort()},budget);
     try{
      result=await generateImage({
-      images:imgs,prompt:job.prompt,signal:request.signal,ratio:batch.ar,megapixels:batch.mp,
+      images:imgs,prompt:job.prompt,signal:request.signal,ratio:batch.ar,
       settings,model:modelOf(settings),checkpoint:localPreset?settings.checkpoint:null
      });
      request.signal.throwIfAborted();
