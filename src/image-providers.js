@@ -15,6 +15,10 @@ window.PoseWearImageProviders = (() => {
       name: '豆包 Seedream', base: 'https://ark.cn-beijing.volces.com/api/v3', model: 'doubao-seedream-5-5-261028',
       models: ['doubao-seedream-5-5-261028', 'doubao-seedream-5-0-flash-260915', 'doubao-seedream-4-5-251128', 'doubao-seedream-4-0-250828']
     },
+    zzai: {
+      name: 'ZZAI 异步', base: 'https://api.seedance.nz', model: 'zhenzhen-image-g-v2.6-lowprice',
+      models: ['zhenzhen-image-g-v2.6-lowprice', 'zhenzhen-image-g-v2.6-flare', 'zhenzhen-image-g-v2.6-sunburst', 'zhenzhen-image-g2-t2i', 'zhenzhen-image-g2-i2i']
+    },
     custom: {
       name: '自定义中转', base: '', model: 'gpt-image-1',
       models: ['gpt-image-1', 'gpt-image-2', 'grok-imagine-image-2.0', 'gemini-2.5-flash-image', 'flux-kontext-pro', 'qwen-image-edit', 'doubao-seedream-4-0-250828']
@@ -37,6 +41,7 @@ window.PoseWearImageProviders = (() => {
     if (protocol(settings) === 'gemini' && /\/v1(beta|alpha)?$/.test(base)) return base;
     if (settings.prov === 'gemini') return base + '/v1beta';
     if (settings.prov === 'seedream') return base;
+    if (settings.prov === 'zzai') return base.replace(/\/v\d+$/, '');
     return /\/v\d+$/.test(base) ? base : base + '/v1';
   }
 
@@ -45,7 +50,8 @@ window.PoseWearImageProviders = (() => {
     const headers = new Headers(options.headers);
     if (protocol(settings) === 'gemini') headers.set('x-goog-api-key', settings.key);
     else headers.set('Authorization', 'Bearer ' + settings.key);
-    if (!settings.proxy) return fetch(url, { ...options, headers });
+    // zzai 的 CORS 预检回 allow-headers:*，按规范不覆盖 Authorization，浏览器直连必被拦，一律走本站代理
+    if (!settings.proxy && settings.prov !== 'zzai') return fetch(url, { ...options, headers });
     headers.set('x-target-url', url);
     if (settings.prov === 'custom' || !officialHost.test(new URL(url).hostname)) headers.set('x-proxy-custom', '1');
     return fetch('/api/proxy', { ...options, headers });
@@ -118,6 +124,14 @@ window.PoseWearImageProviders = (() => {
   }
 
   async function testConnection(settings, model, signal) {
+    if (settings.prov === 'zzai') {
+      // 图片接口是异步任务、没有模型列表，改用钱包接口验证密钥
+      const reply = await request(settings, '/api/usage/wallet/', { method: 'GET', signal });
+      const data = await reply.json().catch(() => null);
+      if (!reply.ok) throw apiError(reply, data, settings);
+      const balance = [data?.balance, data?.amount, data?.data?.amount, data?.data?.balance].find(v => typeof v === 'number' && !Number.isNaN(v));
+      return '连接成功：密钥有效' + (balance != null ? '，钱包余额 ' + balance : '') + '。生图为异步任务，提交后自动轮询取图。';
+    }
     const gemini = protocol(settings) === 'gemini';
     const path = gemini ? '/models/' + encodeURIComponent(model) : '/models';
     const reply = await request(settings, path, { method: 'GET', signal });
@@ -280,11 +294,61 @@ window.PoseWearImageProviders = (() => {
     }
   }
 
+  // ZZAI（api.seedance.nz）图片模型为异步任务：提交后轮询 task_id，成功后取 result_url。
+  // 参考图不接受 base64，本地文件先经 /v1/files/upload 换 24 小时临时直链（免费）。
+  async function zzaiPoll(job, id) {
+    const deadline = Date.now() + 10 * 60 * 1000;
+    while (Date.now() < deadline) {
+      if (job.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { job.signal.removeEventListener('abort', onAbort); resolve(); }, 5000);
+        const onAbort = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); };
+        job.signal.addEventListener('abort', onAbort, { once: true });
+      });
+      const reply = await request(job.settings, '/v1/image/generations/' + encodeURIComponent(id), { method: 'GET', signal: job.signal });
+      const data = await reply.json().catch(() => null);
+      job.signal.throwIfAborted();
+      if (!reply.ok) throw apiError(reply, data, job.settings);
+      const task = data?.data && typeof data.data === 'object' ? data.data : data;
+      const status = String(task?.status || '').toUpperCase();
+      if (status === 'SUCCESS') {
+        const url = task?.result_url || task?.data?.content?.image_urls?.[0];
+        if (!url) throw Error('任务已完成但没有返回图片地址');
+        return url;
+      }
+      if (status === 'FAILURE') throw Error('生成失败：' + (task?.fail_reason || '服务商未说明原因（失败任务费用全额退还）'));
+    }
+    throw Error('任务等待超时（10 分钟仍未完成），请稍后重试或到服务商后台查看任务');
+  }
+
+  async function generateZzai(job) {
+    const urls = [];
+    for (const image of job.images.slice(0, 16)) {
+      const form = new FormData();
+      form.set('file', image, 'ref-' + (urls.length + 1) + '.jpg');
+      const data = await readResponse(job, '/v1/files/upload', form);
+      if (!data?.url) throw Error('参考图上传失败：服务商没有返回临时直链');
+      urls.push(data.url);
+    }
+    const body = { model: job.model, prompt: job.prompt, n: 1, output_format: 'png' };
+    if (urls.length) body.images = urls;
+    if (job.ratio !== 'auto') body.size = job.ratio;
+    const data = await readResponse(job, '/v1/image/generations', body);
+    const id = data?.task_id || data?.id;
+    if (!id) throw Error('任务已提交但没有返回 task_id');
+    const url = await zzaiPoll(job, id);
+    let dl = await fetch(url, { signal: job.signal }).catch(() => null);
+    if (!dl?.ok) dl = await fetch('/api/proxy', { signal: job.signal, headers: { 'x-target-url': url, 'x-proxy-kind': 'image', 'x-proxy-custom': '1' } }).catch(() => null);
+    if (!dl?.ok) throw Error('结果图片下载失败，请直接打开：' + redact(url, job.settings.key));
+    return { blob: await dl.blob() };
+  }
+
   function generateImage(job) {
     switch (protocol(job.settings)) {
       case 'local': return generateLocal(job);
       case 'gemini': return generateGemini(job);
       case 'seedream': return generateSeedream(job);
+      case 'zzai': return generateZzai(job);
       case 'xai': return generateXai(job);
       default: return generateOpenAI(job);
     }

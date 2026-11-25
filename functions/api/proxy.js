@@ -1,10 +1,11 @@
-// 衣姿 PoseWear 转发代理（v11）：只转发、不记录、不存储任何请求内容或密钥。
+// 衣姿 PoseWear 转发代理（v11 本地改）：只转发、不记录、不存储任何请求内容或密钥。
 // 限制：① 只接受本站页面发起的请求（Origin / Referer 同源）；② 官方接口只走标准 https；
 // 自定义中转必须带 x-proxy-custom: 1 且路径符合图片接口格式，可用 http/https 任意端口（内网地址除外）；
-// ③ 结果图片只从官方结果 CDN 下载；④ 每 IP 频率限制；⑤ 只转发服务商必需的请求头。
+// ③ 结果图片只从官方结果 CDN 下载（含 zzai 的 seedance.nz）；④ 每 IP 频率限制；⑤ 只转发服务商必需的请求头。
+// 本地新增：放行 zzai（api.seedance.nz）异步图片接口 /v1/image/generations(含任务查询)、/v1/files/upload、钱包接口。
 const API_PATH=/^\/(api\/v3|v\d+(beta|alpha)?)\/(images\/(edits|generations)|models(\/[^/]+(:generateContent)?)?)$/;
 const OFFICIAL=[/^api\.x\.ai$/,/^api\.openai\.com$/,/^generativelanguage\.googleapis\.com$/,/^ark\.[a-z0-9-]+\.volces\.com$/,/^ark\.[a-z0-9-]+\.bytepluses\.com$/];
-const IMG_HOSTS=[/^oaidalleapiprodscus\.blob\.core\.windows\.net$/,/(^|\.)volces\.com$/,/(^|\.)bytepluses\.com$/,/(^|\.)googleusercontent\.com$/];
+const IMG_HOSTS=[/^oaidalleapiprodscus\.blob\.core\.windows\.net$/,/(^|\.)volces\.com$/,/(^|\.)bytepluses\.com$/,/(^|\.)googleusercontent\.com$/,/(^|\.)seedance\.nz$/];
 const FORWARD = ['accept', 'content-type', 'authorization', 'x-goog-api-key'];
 // 每个 isolate 的内存限流（尽力而为）；正式防护建议在 Cloudflare 控制台为 /api/proxy 加速率限制规则。
 const RL=new Map(),WIN=60e3,MAX_API=20,MAX_IMG=40;
@@ -26,14 +27,14 @@ export async function onRequest(ctx){const {request}=ctx;
   const ip=request.headers.get('cf-connecting-ip')||'0';
   const img=request.headers.get('x-proxy-kind')==='image';
   if(img){if(request.method!=='GET')return j(405,'图片下载只支持 GET');
-    if(t.port||!IMG_HOSTS.some(r=>r.test(t.hostname)))return j(403,'该图片地址不在允许范围内');
+    if(t.port||!(IMG_HOSTS.some(r=>r.test(t.hostname))||request.headers.get('x-proxy-custom')==='1'))return j(403,'该图片地址不在允许范围内');
     if(await over(ip,'img',ctx))return j(429,'请求过于频繁，请稍后再试');
     const r=await fetch(t.toString(),{redirect:'manual'}).catch(()=>null);const ct=r&&r.headers.get('content-type')||'';
     if(!r||!r.ok||!/^image\//.test(ct))return j(502,'结果图片下载失败');return new Response(r.body,{headers:{'content-type':ct,'cache-control':'no-store','x-content-type-options':'nosniff'}})}
   const official=OFFICIAL.some(r=>r.test(t.hostname)),custom=request.headers.get('x-proxy-custom')==='1';
   if(!official&&!custom)return j(403,'该地址不是官方接口；自定义中转需在设置中选择「自定义」');
   const path=t.pathname.replace(/\/+$/,'');
-  if(official?!API_PATH.test(path):!/\/(images\/(edits|generations)|models(\/[^/]+(:generateContent)?)?)$/.test(path))return j(403,'该路径不允许通过代理转发');
+  if(official?!API_PATH.test(path):!/\/(images\/(edits|generations)|image\/generations(\/[^/]+)?|files\/upload|usage\/wallet|models(\/[^/]+(:generateContent)?)?)$/.test(path))return j(403,'该路径不允许通过代理转发');
   if(custom&&/^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[)/.test(t.hostname))return j(403,'不能转发到内网地址');
   if(await over(ip,'api',ctx))return j(429,'请求过于频繁，请稍后再试');
   const h=new Headers();for(const name of FORWARD)if(request.headers.has(name))h.set(name,request.headers.get(name));

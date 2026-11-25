@@ -24,6 +24,9 @@
 > [!CAUTION]
 > **谨防冒充**：官方入口只有 [posewear.pages.dev](https://posewear.pages.dev/) 和本仓库，免费、无需注册账号、没有收费套餐。PoseWear 没有 Windows / Android 客户端，也不在任何网盘分发安装包；以 posewear.cn、posewear.art 等域名冒充官网、提供 exe / apk 下载或要求登录付费的均为假冒，请勿下载、登录或付款，更不要在其中填写 API Key。
 
+> [!NOTE]
+> **关于本 Fork（AnyPose）**：基于 [atuizz/posewear](https://github.com/atuizz/posewear) 修改，新增了对 zzai（api.seedance.nz）异步图片接口的支持——工作台服务商选「ZZAI 异步」即可调用 GPT Image 2.6 系列生图（参考图自动上传换取临时直链、任务自动轮询）。
+
 ---
 
 ## 挑图
