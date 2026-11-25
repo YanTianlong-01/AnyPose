@@ -682,7 +682,9 @@ async function run(opts={}){
     const request=new AbortController(),cancel=()=>request.abort();
     signal.addEventListener('abort',cancel,{once:true});
     let timeout=false,result;
-    const timer=setTimeout(()=>{timeout=true;request.abort()},window.__TMO||180000);
+    // 异步任务型服务商（提交后轮询取图）单次生成本来就要几分钟，放宽外层超时以覆盖其内部等待上限
+    const budget=window.__TMO||((settings.prov=='zzai'||settings.prov=='rh')?960000:180000);
+    const timer=setTimeout(()=>{timeout=true;request.abort()},budget);
     try{
      result=await generateImage({
       images:imgs,prompt:job.prompt,signal:request.signal,ratio:batch.ar,
@@ -690,7 +692,7 @@ async function run(opts={}){
      });
      request.signal.throwIfAborted();
     }catch(error){
-     if(timeout&&!signal.aborted){const e=Error('timeout');e.zh='等了 3 分钟还没有返回。服务商可能正忙，稍后点「重试」。';throw e}
+     if(timeout&&!signal.aborted){const e=Error('timeout');e.zh='等了 '+Math.round(budget/60000)+' 分钟还没有返回。服务商可能正忙，稍后点「重试」。';throw e}
      throw error;
     }finally{clearTimeout(timer);signal.removeEventListener('abort',cancel)}
     if(result.warn)warnings.add(result.warn);
