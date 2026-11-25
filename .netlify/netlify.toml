@@ -1,0 +1,54 @@
+functionsDirectory = "/Users/yantianlong/Desktop/ComfyUI/Youtube/B站视频/第32期Qwen-2.1-Image AnyPose/posewear/netlify/functions"
+functionsDirectoryOrigin = "config-v1"
+redirectsOrigin = "config"
+plugins = []
+headers = []
+
+[build]
+publish = "/Users/yantianlong/Desktop/ComfyUI/Youtube/B站视频/第32期Qwen-2.1-Image AnyPose/posewear/publish"
+publishOrigin = "config"
+commandOrigin = "config"
+command = "node scripts/build-netlify.mjs"
+functions = "/Users/yantianlong/Desktop/ComfyUI/Youtube/B站视频/第32期Qwen-2.1-Image AnyPose/posewear/netlify/functions"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[functions]
+
+[functions."*"]
+
+[[redirects]]
+from = "/api/proxy"
+to = "/.netlify/functions/proxy"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/*"
+to = "https://posewear.pages.dev/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]

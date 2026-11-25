@@ -1,0 +1,19 @@
+# AnyPose on Netlify:静态 src + 两个 Functions(代理 / 素材目录),其余路径回退到官方发布站(m/i 图、SEO 页)。
+[build]
+  command = "node scripts/build-netlify.mjs"
+  publish = "publish"
+  functions = "netlify/functions"
+
+# 12 份素材目录 → catalog function(从官方发布站拉取并校验指纹)
+
+# 生图代理(zzai 强制走代理 / 结果图回退)
+[[redirects]]
+  from = "/api/proxy"
+  to = "/.netlify/functions/proxy"
+  status = 200
+
+# 其余缺失路径(m/i 中图、SEO 落地页等)回退官方发布站;publish 里已有的文件优先,无需 force
+[[redirects]]
+  from = "/*"
+  to = "https://posewear.pages.dev/:splat"
+  status = 200
